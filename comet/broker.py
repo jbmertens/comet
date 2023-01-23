@@ -17,6 +17,7 @@ import asyncio
 import contextvars
 import datetime
 import json
+import ujson
 import random
 import logging
 import redis as redis_sync
@@ -58,6 +59,8 @@ waiting_states = {}
 # used for tracking sequences of events in the logs
 request_id = contextvars.ContextVar("request_id", default=0)
 
+def json_dumps(*args, **kwargs):
+    return ujson.dumps(*args, **kwargs, ensure_ascii=False, reject_bytes=False)
 
 class RequestFormatter(logging.Formatter):
     """Logging formatter that adds a request_id to the logger's record.
@@ -153,7 +156,7 @@ async def get_states(request):
         reply = {"result": "success", "states": states}
 
         logger.debug("states: {}".format(states))
-        return response.json(reply)
+        return response.json(reply, dumps=json_dumps)
     except Exception as e:
         logger.error(
             "states: threw exception {} while handling request from {}",
@@ -182,7 +185,7 @@ async def get_datasets(request):
         reply = {"result": "success", "datasets": datasets}
 
         logger.debug("datasets: {}".format(datasets))
-        return response.json(reply)
+        return response.json(reply, dumps=json_dumps)
     except Exception as e:
         logger.error(
             "datasets: threw exception {} while handling request from {}",
@@ -854,8 +857,6 @@ class Broker:
 
         app.run(
             workers=1,
-            return_asyncio_server=True,
-            log_config={},
             debug=False,
             **server_kwargs,
         )
