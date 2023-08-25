@@ -24,6 +24,7 @@ import redis as redis_sync
 import time
 import traceback
 
+import async_lru
 from async_lru import alru_cache
 from sanic import Sanic
 from sanic import response
@@ -37,6 +38,7 @@ from . import __version__
 from .manager import Manager, TIMESTAMP_FORMAT
 from .exception import CometError, DatasetNotFoundError, StateNotFoundError
 
+from packaging import version
 
 REQUESTED_STATE_TIMEOUT = 35
 DEFAULT_PORT = 12050
@@ -45,7 +47,7 @@ REDIS_SERVER = ("localhost", 6379)
 # config variable
 wait_time = None
 
-app = Sanic(__name__)
+app = Sanic(__name__.replace('.', '_'))
 app.config.REQUEST_TIMEOUT = 120
 app.config.RESPONSE_TIMEOUT = 120
 
@@ -61,6 +63,15 @@ request_id = contextvars.ContextVar("request_id", default=0)
 
 def json_dumps(*args, **kwargs):
     return ujson.dumps(*args, **kwargs, ensure_ascii=False, reject_bytes=False)
+
+def alru_cache_backcompat(maxsize=10000) :
+    """ Just a function to provide some backwards compatibility for async_lru.
+    As of 2.0.0 (?), cache_exceptions was defaulted to false.
+    """
+    if version.parse(async_lru.__version__) >= version.parse("2.0.0"):
+        return alru_cache(maxsize=10000)
+    else :
+        return alru_cache(maxsize=10000, cache_exceptions=False)
 
 class RequestFormatter(logging.Formatter):
     """Logging formatter that adds a request_id to the logger's record.
@@ -637,7 +648,7 @@ wait_for_state = lambda id: wait_for_x(
 )
 
 
-@alru_cache(maxsize=10000, cache_exceptions=False)
+@alru_cache_backcompat(maxsize=10000)
 async def get_dataset(ds_id, wait=True):
     """
     Get a dataset by ID from redis (LRU cached).
@@ -673,7 +684,7 @@ async def get_dataset(ds_id, wait=True):
     return json.loads(ds)
 
 
-@alru_cache(maxsize=1000, cache_exceptions=False)
+@alru_cache_backcompat(maxsize=1000)
 async def get_state(state_id, wait=True):
     """
     Get a state by ID from redis (LRU cached).
